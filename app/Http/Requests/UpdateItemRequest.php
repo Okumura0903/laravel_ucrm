@@ -11,7 +11,7 @@ class UpdateItemRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -23,6 +23,10 @@ class UpdateItemRequest extends FormRequest
     {
         return [
             //
+            'name'=>['required','max:50'],
+            'memo'=>['max:255'],
+            'price'=>['required','numeric','min:0'],
+            'is_selling'=>['required','boolean'],
         ];
     }
 }
