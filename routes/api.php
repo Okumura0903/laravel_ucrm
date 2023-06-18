@@ -3,7 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Models\Customer;
-
+use App\Http\Controllers\Api\AnalysisController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -14,6 +14,10 @@ use App\Models\Customer;
 | be assigned to the "api" middleware group. Make something great!
 |
 */
+
+Route::middleware('auth:sanctum')
+    ->get('/analysis',[AnalysisController::class,'index'])
+    ->name('api.analysis');
 
 Route::middleware('auth:sanctum')->get('/searchCustomers', function (Request $request) {
     return Customer::searchCustomer($request->search)//ローカルscope
