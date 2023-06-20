@@ -1,22 +1,15 @@
 <?php
-
-namespace App\Http\Controllers;
-
-use Illuminate\Http\Request;
-use Inertia\Inertia;
-use App\Models\Order;
+namespace App\Services;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
-class AnalysisController extends Controller
+class RFMService
 {
-    //
-    public function index(){
-        $startDate='2022-09-01';
-        $endDate='2023-09-01';
+    public static function rfm($subQuery,$rfmPrms){
 
         //RFM分析
         //購買ID毎にまとめる
-        $subQuery=Order::betweenDate($startDate,$endDate)
+        $subQuery=$subQuery
         ->groupBy('id')
         ->selectRaw('id,customer_id,customer_name,sum(subtotal) as totalPerPurchase,created_at');
 
@@ -25,7 +18,7 @@ class AnalysisController extends Controller
         ->groupBy('customer_id')
         ->selectRaw('customer_id,customer_name,max(created_at) as recentDate,datediff(now(),max(created_at)) as recency,count(customer_id) as frequency,sum(totalPerPurchase) as monetary');
 
-$rfmPrms=[14,28,60,90,7,5,3,2,300000,200000,100000,30000];
+//$rfmPrms=[14,28,60,90,7,5,3,2,300000,200000,100000,30000];
 
         //会員毎のRFMランクを計算
         $subQuery=DB::table($subQuery)
@@ -51,25 +44,70 @@ $rfmPrms=[14,28,60,90,7,5,3,2,300000,200000,100000,30000];
         ',$rfmPrms);
 
         //ランク毎の数を計算する
-        $total=DB::table($subQuery)->count();
+        $totals=DB::table($subQuery)->count();
 
-        $rCount=DB::table($subQuery)
+        // $rCount=DB::table($subQuery)
+        // ->groupBy('r')
+        // ->selectRaw('r,count(r)')
+        // ->orderBy('r','desc')
+        // ->pluck('count(r)');//rは並べ替えようなのでいらない
+
+        $rDatas= DB::table($subQuery)
         ->groupBy('r')
-        ->selectRaw('r,count(r)')
+        ->selectRaw('r,count(r) as c')
         ->orderBy('r','desc')
-        ->pluck('count(r)');//rは並べ替えようなのでいらない
+        ->get();//[{"r":5,"count(r)":998},{"r":4,"count(r)":2}]  
 
-        $fCount=DB::table($subQuery)
+        $rCount=[];
+        foreach($rDatas as $rData){
+            $rCount[5-$rData->r]=$rData->c;
+        }
+        for($i=0;$i<5;$i++){
+            if(empty($rCount[$i])){
+                $rCount[$i]=0;
+            }
+        }
+
+        Log::debug("debug ログ1");
+
+        $fDatas=DB::table($subQuery)
         ->groupBy('f')
-        ->selectRaw('f,count(f)')
+        ->selectRaw('f,count(f) as c')
         ->orderBy('f','desc')
-        ->pluck('count(f)');
+        ->get();
 
-        $mCount=DB::table($subQuery)
+        $fCount=[];
+        foreach($fDatas as $fData){
+            $fCount[5-$fData->f]=$fData->c;
+        }
+        for($i=0;$i<5;$i++){
+            if(empty($fCount[$i])){
+                $fCount[$i]=0;
+            }
+        }
+
+
+        Log::debug("debug ログ2");
+
+        $mDatas=DB::table($subQuery)
         ->groupBy('m')
-        ->selectRaw('m,count(m)')
+        ->selectRaw('m,count(m) as c')
         ->orderBy('m','desc')
-        ->pluck('count(m)');
+        ->get();
+
+        $mCount=[];
+        foreach($mDatas as $mData){
+            $mCount[5-$mData->m]=$mData->c;
+        }
+        for($i=0;$i<5;$i++){
+            if(empty($mCount[$i])){
+                $mCount[$i]=0;
+            }
+        }
+
+
+            Log::debug("debug ログ3");
+
 
         //RとFで２次元で表示
         $data=DB::table($subQuery)
@@ -83,16 +121,28 @@ $rfmPrms=[14,28,60,90,7,5,3,2,300000,200000,100000,30000];
         ')
         ->orderBy('rRank','desc')->get();
 
+
+        Log::debug($rCount);
+        Log::debug($fCount);
+        Log::debug($mCount);
+
+
         $eachCount=[];
         $rank=5;
         for($i=0;$i<5;$i++){
+            Log::debug("debug ログ1");
             array_push($eachCount,[
-                'rank'=>$rank,'r'=>$rCount[$i],'f'=>$fCount[$i],'m'=>$mCount[$i]
+                'rank'=>$rank,
+                'r'=>$rCount[$i],
+                'f'=>$fCount[$i],
+                'm'=>$mCount[$i]
             ]);
+            Log::debug("debug ログ2");
+
             $rank--;
         }
- //       dd($total,$eachCount,$rCount,$fCount,$mCount);
-        return Inertia::render('Analysis');
+        Log::debug("debug ログ4");
+        
+        return [$data,$totals,$eachCount];
     }
-
 }
